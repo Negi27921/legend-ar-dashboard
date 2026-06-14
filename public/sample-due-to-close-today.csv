@@ -1,0 +1,6 @@
+No,Type,Vehicle No,Make And Model,Customer,Contact Number,Email,Sales Person,Start Date,Expected Date,Branch,In Branch,Collection Branch,Daily Rate,Total Amount,Outstanding,Deposit
+AGR-24-00123,Monthly,B-12345,Toyota Camry 2023,Ahmed Al Maktoum,+971501234567,ahmed@email.com,Ranjith,2026-05-14,2026-06-14,Main Branch,Main Branch,Main Branch,150.00,4500.00,1200.00,2000.00
+AGR-24-00456,Weekly,D-67890,Nissan Patrol 2024,Fatima Hassan,+971559876543,fatima@email.com,Shabeeh,2026-06-07,2026-06-14,JLT Branch,JLT Branch,Main Branch,280.00,1960.00,0.00,3000.00
+AGR-24-00789,Monthly,A-11223,Hyundai Tucson 2023,Mohammed Rashid,+971504567890,mohammed@email.com,Ranjith,2026-05-14,2026-06-14,Deira Branch,Deira Branch,Deira Branch,120.00,3600.00,850.00,1500.00
+AGR-24-00101,Daily,C-44556,Kia Sportage 2024,Sara Abdullah,+971521112233,sara@email.com,Ali,2026-06-13,2026-06-14,Main Branch,Main Branch,Main Branch,200.00,200.00,200.00,1000.00
+AGR-24-00202,Monthly,E-77889,Toyota Land Cruiser 2023,Khalid Omar,+971507778899,khalid@email.com,Shabeeh,2026-05-14,2026-06-14,JLT Branch,JLT Branch,JLT Branch,350.00,10500.00,3200.00,5000.00

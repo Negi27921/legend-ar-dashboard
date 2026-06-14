@@ -1,0 +1,6 @@
+No,Type,Vehicle No,Make And Model,Customer,Contact Number,Email,Sales Person,Start Date,Expected Date,Branch,In Branch,Collection Branch,Daily Rate,Total Amount,Outstanding,Deposit
+AGR-24-00050,Monthly,F-33221,Honda Accord 2023,Ali Mahmoud,+971508881234,ali.m@email.com,Ranjith,2026-04-10,2026-06-10,Main Branch,Main Branch,Main Branch,130.00,3900.00,2600.00,1500.00
+AGR-24-00067,Weekly,G-55443,Mitsubishi Pajero 2024,Noor Ahmed,+971527654321,noor@email.com,Shabeeh,2026-05-30,2026-06-06,Deira Branch,Deira Branch,Main Branch,250.00,1750.00,1750.00,2500.00
+AGR-24-00088,Monthly,H-99887,Chevrolet Tahoe 2023,Hassan Yousuf,+971503334455,hassan@email.com,Ali,2026-04-01,2026-06-01,JLT Branch,JLT Branch,JLT Branch,400.00,12000.00,5400.00,4000.00
+AGR-24-00099,Monthly,J-11234,Nissan Altima 2024,Mariam Khalil,+971551239876,mariam@email.com,Ranjith,2026-05-01,2026-06-08,Main Branch,Deira Branch,Main Branch,110.00,3300.00,1100.00,1000.00
+AGR-24-00110,Daily,K-56789,Toyota Yaris 2023,Omar Farooq,+971509998877,omar.f@email.com,Shabeeh,2026-06-10,2026-06-11,Deira Branch,Deira Branch,Deira Branch,80.00,80.00,80.00,500.00
