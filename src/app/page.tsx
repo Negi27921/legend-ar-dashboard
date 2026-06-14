@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock, Users, TrendingUp, AlertTriangle, Car, ArrowUpRight,
   MessageSquare, CreditCard, Shield, RefreshCw,
   ChevronRight, Activity, Zap, LayoutDashboard,
-  ListTodo, Radio, Settings, Phone
+  ListTodo, Radio, Settings, Phone, Database, Cloud, Download
 } from "lucide-react";
 
 import { StatCard } from "@/components/stat-card";
@@ -21,10 +21,11 @@ import {
   sampleContracts, sampleStats, sampleReceivables,
   sampleTasks, sampleEscalations, sampleTimeline, sampleWorkload
 } from "@/lib/sample-data";
-import { Contract, Task, Escalation, TimelineEvent } from "@/lib/types";
+import { Contract, Task, Escalation, TimelineEvent, DashboardStats, Receivables, TeamWorkload as TeamWorkloadType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Tab = "overview" | "contracts" | "tasks" | "timeline";
+type DataSource = "sample" | "speed_live";
 
 export default function Dashboard() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -32,23 +33,74 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>(sampleTasks);
   const [escalations, setEscalations] = useState<Escalation[]>(sampleEscalations);
   const [timeline, setTimeline] = useState<TimelineEvent[]>(sampleTimeline);
+  const [stats, setStats] = useState<DashboardStats>(sampleStats);
+  const [receivables, setReceivables] = useState<Receivables>(sampleReceivables);
+  const [workload, setWorkload] = useState<TeamWorkloadType>(sampleWorkload);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [dataSource, setDataSource] = useState<DataSource>("sample");
+  const [lastScraped, setLastScraped] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
+  const fetchLiveData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/contracts");
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      setContracts(data.contracts);
+      setTasks(data.tasks);
+      setEscalations(data.escalations);
+      setTimeline(data.timeline);
+      setStats(data.stats);
+      setReceivables(data.receivables);
+      setWorkload(data.workload);
+      setDataSource(data.meta.source);
+      setLastScraped(data.meta.lastScraped);
       setLastRefresh(new Date());
-      showToast("Dashboard refreshed");
-    }, 800);
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    const data = await fetchLiveData();
+    setIsRefreshing(false);
+    if (data) {
+      showToast(`Dashboard refreshed — ${data.meta.source === "speed_live" ? "Live data" : "Sample data"} (${data.meta.contractCount} contracts)`);
+    } else {
+      showToast("Refresh failed — using cached data");
+    }
+  }, [fetchLiveData, showToast]);
+
+  const handleResetToSample = useCallback(async () => {
+    await fetch("/api/contracts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reset" }),
+    });
+    setContracts(sampleContracts);
+    setTasks(sampleTasks);
+    setEscalations(sampleEscalations);
+    setTimeline(sampleTimeline);
+    setStats(sampleStats);
+    setReceivables(sampleReceivables);
+    setWorkload(sampleWorkload);
+    setDataSource("sample");
+    setLastScraped(null);
+    showToast("Reset to sample data");
   }, [showToast]);
+
+  // Check for live data on mount
+  useEffect(() => {
+    fetchLiveData();
+  }, [fetchLiveData]);
 
   const handleOverride = useCallback((id: string, reason: string) => {
     setContracts(prev => prev.map(c =>
@@ -109,7 +161,7 @@ export default function Dashboard() {
     showToast(`Task ${id} marked ${status}`);
   }, [showToast]);
 
-  const tabs = [
+  const navTabs = [
     { id: "overview" as Tab, label: "Overview", icon: LayoutDashboard },
     { id: "contracts" as Tab, label: "Contracts", icon: Car },
     { id: "tasks" as Tab, label: "Tasks", icon: ListTodo },
@@ -133,7 +185,7 @@ export default function Dashboard() {
             </div>
 
             <nav className="hidden md:flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-              {tabs.map(t => (
+              {navTabs.map(t => (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
@@ -158,9 +210,26 @@ export default function Dashboard() {
             </nav>
 
             <div className="flex items-center gap-3">
+              {/* Data source badge */}
+              <button
+                onClick={dataSource === "speed_live" ? handleResetToSample : handleRefresh}
+                className={cn(
+                  "hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                  dataSource === "speed_live"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                    : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                )}
+              >
+                {dataSource === "speed_live" ? (
+                  <><Cloud className="w-3 h-3" /> Live Data</>
+                ) : (
+                  <><Database className="w-3 h-3" /> Sample Data</>
+                )}
+              </button>
+
               <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 pulse-dot" />
-                Live · {lastRefresh.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                <div className={cn("w-2 h-2 rounded-full pulse-dot", dataSource === "speed_live" ? "bg-emerald-500" : "bg-blue-500")} />
+                {lastRefresh.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
               </div>
               <button
                 onClick={handleRefresh}
@@ -176,7 +245,7 @@ export default function Dashboard() {
 
           {/* Mobile nav */}
           <div className="md:hidden flex gap-1 pb-3 overflow-x-auto">
-            {tabs.map(t => (
+            {navTabs.map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
@@ -193,22 +262,39 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* Live data banner */}
+      {dataSource === "speed_live" && (
+        <div className="bg-emerald-50 border-b border-emerald-100">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-emerald-700">
+              <Cloud className="w-3.5 h-3.5" />
+              <span className="font-medium">Connected to Speed ERP</span>
+              {lastScraped && <span className="text-emerald-500">· Last sync: {new Date(lastScraped).toLocaleTimeString("en-GB")}</span>}
+              <span className="text-emerald-500">· {contracts.length} contracts loaded</span>
+            </div>
+            <button onClick={handleResetToSample} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+              Switch to Sample Data
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <AnimatePresence mode="wait">
           {tab === "overview" && (
             <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                <StatCard label="Expiring Today" value={sampleStats.expiringToday} icon={<Clock className="w-5 h-5" />} color="amber" delay={0} />
-                <StatCard label="Contacted" value={sampleStats.contacted} icon={<MessageSquare className="w-5 h-5" />} color="blue" subtitle={`${sampleStats.messagesSent} messages sent`} delay={1} />
-                <StatCard label="Responded" value={sampleStats.responded} icon={<ArrowUpRight className="w-5 h-5" />} color="emerald" delay={2} />
-                <StatCard label="Overdue" value={sampleStats.overdue} icon={<AlertTriangle className="w-5 h-5" />} color="red" delay={3} />
+                <StatCard label="Expiring Today" value={stats.expiringToday} icon={<Clock className="w-5 h-5" />} color="amber" delay={0} />
+                <StatCard label="Contacted" value={stats.contacted} icon={<MessageSquare className="w-5 h-5" />} color="blue" subtitle={`${stats.messagesSent} messages sent`} delay={1} />
+                <StatCard label="Responded" value={stats.responded} icon={<ArrowUpRight className="w-5 h-5" />} color="emerald" delay={2} />
+                <StatCard label="Overdue" value={stats.overdue} icon={<AlertTriangle className="w-5 h-5" />} color="red" delay={3} />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-                <StatCard label="Extended" value={sampleStats.extended} icon={<ArrowUpRight className="w-5 h-5" />} color="emerald" delay={4} />
-                <StatCard label="Returning" value={sampleStats.returning} icon={<Car className="w-5 h-5" />} color="purple" delay={5} />
-                <StatCard label="Total Active" value={sampleStats.totalContracts} icon={<Activity className="w-5 h-5" />} color="slate" delay={6} />
-                <StatCard label="Immobilised" value={sampleStats.immobilised} icon={<Shield className="w-5 h-5" />} color="orange" delay={7} />
+                <StatCard label="Extended" value={stats.extended} icon={<ArrowUpRight className="w-5 h-5" />} color="emerald" delay={4} />
+                <StatCard label="Returning" value={stats.returning} icon={<Car className="w-5 h-5" />} color="purple" delay={5} />
+                <StatCard label="Total Active" value={stats.totalContracts} icon={<Activity className="w-5 h-5" />} color="slate" delay={6} />
+                <StatCard label="Immobilised" value={stats.immobilised} icon={<Shield className="w-5 h-5" />} color="orange" delay={7} />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -217,7 +303,7 @@ export default function Dashboard() {
                     <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Open Receivables</h2>
                     <CreditCard className="w-4 h-4 text-slate-300" />
                   </div>
-                  <ReceivablesChart data={sampleReceivables} />
+                  <ReceivablesChart data={receivables} />
                 </motion.div>
 
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.4 }} className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -233,7 +319,7 @@ export default function Dashboard() {
                     <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Team Workload</h2>
                     <Users className="w-4 h-4 text-slate-300" />
                   </div>
-                  <TeamWorkload workload={sampleWorkload} />
+                  <TeamWorkload workload={workload} />
                 </motion.div>
               </div>
 
