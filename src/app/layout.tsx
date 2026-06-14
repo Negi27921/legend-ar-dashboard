@@ -4,12 +4,13 @@ import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
-  title: "Legend Rentals — AR Command Center",
+  title: "Legend AR — Command Center",
   description:
-    "Accounts Receivable Automation Dashboard for Legend Rentals Dubai",
+    "Contract Lifecycle & Accounts Receivable Operating System for Legend Rentals",
 };
 
 export default function RootLayout({
@@ -18,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.className} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-[#fafafa] text-[#111]">
+    <html lang="en" className={`${inter.variable} h-full`} suppressHydrationWarning>
+      <body className="min-h-full font-[var(--font-inter)] antialiased">
         {children}
       </body>
     </html>
