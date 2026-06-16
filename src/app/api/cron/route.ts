@@ -39,6 +39,11 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Step 0: Transition stale categories (yesterday's "due today" → "overdue")
+    const { transitionStaleCategories } = await import("@/lib/supabase");
+    const transition = await transitionStaleCategories();
+    console.log(`[cron] Category transition: ${transition.demoted} → overdue, ${transition.promoted} → due today`);
+
     // Step 1: Login to Speed ERP
     const loginRes = await fetch(`${erpUrl}/api/method/login`, {
       method: "POST",
@@ -90,7 +95,7 @@ export async function GET(request: Request) {
       const { upsertContracts } = await import("@/lib/supabase");
       const mapped = allContracts.map((c: Record<string, unknown>) => ({
         agreement_no: (c.name as string) || "",
-        agreement_type: (c.rental_type as string) || "",
+        contract_type: (c.rental_type as string) || "",
         vehicle_no: (c.vehicle_no as string) || "",
         make_model: (c.make_model as string) || "",
         customer_name: (c.customer_name as string) || "",
@@ -103,7 +108,7 @@ export async function GET(request: Request) {
         daily_rate: Number(c.daily_rate) || 0,
         total_amount: Number(c.total_amount) || 0,
         outstanding_amount: Number(c.outstanding_amount) || 0,
-        deposit: Number(c.deposit) || 0,
+        deposit_amount: Number(c.deposit) || 0,
         category: c._category as string,
       }));
       const batchId = `cron-${new Date().toISOString().slice(0, 10)}`;

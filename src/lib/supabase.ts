@@ -60,6 +60,89 @@ export interface ActionLogRow {
   created_at: string;
 }
 
+// ---------- Date-based category helpers ----------
+
+/**
+ * Dubai timezone (GST = UTC+4). All category logic uses Dubai date.
+ */
+function getTodayDubai(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" }); // YYYY-MM-DD
+}
+
+/**
+ * Compute the correct category based on a contract's end_date relative to today (Dubai time).
+ *  - end_date === today  → "due_to_close_today"
+ *  - end_date < today    → "over_due_closing"
+ *  - end_date > today or null → keep existing category (future contract still in system)
+ */
+function computeCategory(endDate: string | null, existingCategory: string): string {
+  if (!endDate) return existingCategory;
+  const today = getTodayDubai();
+  const end = endDate.substring(0, 10); // normalise to YYYY-MM-DD
+  if (end === today) return "due_to_close_today";
+  if (end < today) return "over_due_closing";
+  return existingCategory; // future date — keep as-is
+}
+
+/**
+ * Apply live category to a contract row based on end_date vs today.
+ * This ensures the dashboard always shows the correct status regardless
+ * of when the contract was last scraped/uploaded.
+ */
+function applyLiveCategory(contract: ContractRow): ContractRow {
+  const liveCategory = computeCategory(contract.end_date, contract.category);
+  if (liveCategory !== contract.category) {
+    return { ...contract, category: liveCategory };
+  }
+  return contract;
+}
+
+/**
+ * Transition stale categories in Supabase.
+ * - Contracts with category "due_to_close_today" whose end_date < today → "over_due_closing"
+ * - Contracts with category "over_due_closing" whose end_date === today → "due_to_close_today"
+ * Called automatically on each data fetch to keep the DB in sync.
+ */
+export async function transitionStaleCategories(): Promise<{ promoted: number; demoted: number }> {
+  const today = getTodayDubai();
+  let promoted = 0;
+  let demoted = 0;
+
+  // 1. Contracts marked "due_to_close_today" but end_date is before today → overdue
+  const { data: staleToday } = await supabase
+    .from("contracts")
+    .select("id")
+    .eq("category", "due_to_close_today")
+    .lt("end_date", today);
+
+  if (staleToday && staleToday.length > 0) {
+    const ids = staleToday.map((c) => c.id);
+    const { error } = await supabase
+      .from("contracts")
+      .update({ category: "over_due_closing", last_updated: new Date().toISOString() })
+      .in("id", ids);
+    if (!error) demoted = ids.length;
+  }
+
+  // 2. Contracts marked "over_due_closing" but end_date is exactly today → due today
+  const { data: nowDueToday } = await supabase
+    .from("contracts")
+    .select("id")
+    .eq("category", "over_due_closing")
+    .eq("end_date", today);
+
+  if (nowDueToday && nowDueToday.length > 0) {
+    const ids = nowDueToday.map((c) => c.id);
+    const { error } = await supabase
+      .from("contracts")
+      .update({ category: "due_to_close_today", last_updated: new Date().toISOString() })
+      .in("id", ids);
+    if (!error) promoted = ids.length;
+  }
+
+  return { promoted, demoted };
+}
+
 // ---------- Contract queries ----------
 
 export async function getContracts(filters?: {
@@ -69,6 +152,9 @@ export async function getContracts(filters?: {
   action_taken?: string;
   search?: string;
 }) {
+  // First, transition any stale categories in the DB
+  await transitionStaleCategories();
+
   let query = supabase
     .from("contracts")
     .select("*")
@@ -94,15 +180,21 @@ export async function getContracts(filters?: {
 
   const { data, error } = await query;
   if (error) throw error;
-  return data as ContractRow[];
+
+  // Apply live category computation as a safety net
+  const rows = (data as ContractRow[]).map(applyLiveCategory);
+  return rows;
 }
 
 export async function getDashboardStats() {
+  // Transition stale categories before computing stats
+  await transitionStaleCategories();
+
   const { data, error } = await supabase.from("contracts").select("*");
   if (error) throw error;
-  const contracts = data as ContractRow[];
 
-  const today = new Date().toISOString().split("T")[0];
+  // Apply live category to each contract for accurate stats
+  const contracts = (data as ContractRow[]).map(applyLiveCategory);
 
   const dueToClose = contracts.filter((c) => c.category === "due_to_close_today");
   const overdue = contracts.filter((c) => c.category === "over_due_closing");
